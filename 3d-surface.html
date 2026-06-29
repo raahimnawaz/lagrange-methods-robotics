@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lagrange Multipliers — 3D</title>
+<style>
+  :root{
+    --ink:#0f1b2d; --paper:#0c1420; --panel:#121d2c; --line:#243345;
+    --muted:#8295a8; --constraint:#1ab7b7; --max:#34d399; --min:#60a5fa;
+    --hot:#fb3b6b; --amber:#e8a33d;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:radial-gradient(120% 90% at 75% -10%, #16243a 0%, var(--paper) 60%) fixed;
+    color:#e9eef3; font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+    display:flex; justify-content:center; padding:clamp(12px,2.4vw,32px);
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{width:100%; max-width:1120px; display:grid;
+    grid-template-columns:minmax(0,1.4fr) minmax(248px,.92fr); gap:clamp(14px,2vw,28px)}
+  header{grid-column:1/-1}
+  .eyebrow{font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:11px;
+    letter-spacing:.22em; text-transform:uppercase; color:var(--constraint);
+    display:flex; align-items:center; gap:.7em}
+  .eyebrow::before{content:""; width:26px; height:1px; background:var(--constraint)}
+  h1{font-size:clamp(24px,4vw,38px); font-weight:600; line-height:1.05;
+    letter-spacing:-.01em; margin:.3em 0 .22em}
+  h1 em{font-style:italic; color:var(--amber)}
+  .lede{font-size:14.5px; color:var(--muted); max-width:64ch; line-height:1.5}
+
+  .stage{position:relative; border:1px solid var(--line); border-radius:14px;
+    overflow:hidden; background:#0a121d; min-height:420px;
+    box-shadow:0 20px 50px -30px rgba(0,0,0,.8)}
+  #gl{display:block; width:100%; height:520px; touch-action:none; cursor:grab}
+  #gl.drag{cursor:grabbing}
+  .hint{position:absolute; left:14px; bottom:12px; font-family:"SF Mono",ui-monospace,Menlo,monospace;
+    font-size:10.5px; letter-spacing:.04em; color:#5f7488; pointer-events:none}
+
+  .panel{display:flex; flex-direction:column; gap:14px}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:15px 16px}
+  .card h2{font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:10.5px;
+    letter-spacing:.18em; text-transform:uppercase; color:var(--muted); font-weight:500; margin-bottom:11px}
+  .readout{font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:12.5px}
+  .row{display:flex; justify-content:space-between; align-items:baseline; padding:5px 0}
+  .row+.row{border-top:1px dashed var(--line)}
+  .row .k{color:var(--muted)} .row .v{font-variant-numeric:tabular-nums; font-weight:600}
+  .v.lam{color:var(--min)} .v.slope{color:var(--amber)}
+
+  .meter{margin-top:6px}
+  .mlabel{display:flex; justify-content:space-between; margin-bottom:7px;
+    font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:10.5px; color:var(--muted)}
+  .verdict{font-weight:600}
+  .bar{height:7px; border-radius:4px; background:#1c2a3a; overflow:hidden; position:relative}
+  .bar>i{position:absolute; inset:0 100% 0 0; border-radius:4px;
+    background:linear-gradient(90deg,var(--hot),var(--amber) 55%,var(--max)); transition:right .08s linear}
+
+  .legend{display:flex; flex-direction:column; gap:8px; font-size:12.5px}
+  .legend .item{display:flex; align-items:center; gap:9px; line-height:1.25}
+  .sw{width:14px; height:0; border-top-width:3px; border-top-style:solid; flex:none; border-radius:2px}
+  .sw.dot{height:11px; width:11px; border-top:0; border-radius:50%}
+  .legend code{font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:11.5px; color:#cdd9e4}
+  .legend .sub{color:var(--muted)}
+
+  .controls{display:flex; flex-direction:column; gap:12px}
+  .ctl label{display:flex; justify-content:space-between; align-items:baseline;
+    font-size:12px; color:var(--muted); margin-bottom:5px;
+    font-family:"SF Mono",ui-monospace,Menlo,monospace}
+  .ctl label b{color:#e9eef3; font-weight:600}
+  input[type=range]{-webkit-appearance:none; appearance:none; width:100%; height:3px;
+    background:#26384c; border-radius:3px; outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:15px; height:15px;
+    border-radius:50%; background:#e9eef3; cursor:pointer; border:2px solid var(--panel)}
+  input[type=range]::-moz-range-thumb{width:15px; height:15px; border-radius:50%;
+    background:#e9eef3; cursor:pointer; border:2px solid var(--panel)}
+  .btns{display:flex; gap:8px; flex-wrap:wrap}
+  .btn{flex:1; min-width:96px; appearance:none; border:1px solid var(--constraint);
+    background:transparent; color:var(--constraint); font-family:"SF Mono",ui-monospace,Menlo,monospace;
+    font-size:11px; letter-spacing:.03em; padding:9px 8px; border-radius:8px; cursor:pointer;
+    text-transform:uppercase; transition:background .15s,color .15s}
+  .btn:hover{background:var(--constraint); color:#06141a}
+  .btn.alt{border-color:var(--muted); color:var(--muted)}
+  .btn.alt:hover{background:var(--muted); color:#0c1420}
+  .toggle{display:flex; align-items:center; gap:9px; font-size:12px; color:var(--muted);
+    font-family:"SF Mono",ui-monospace,Menlo,monospace; cursor:pointer; user-select:none}
+  .toggle input{accent-color:var(--amber); width:15px; height:15px}
+
+  .foot{grid-column:1/-1; font-size:12.5px; color:var(--muted); line-height:1.55;
+    border-top:1px solid var(--line); padding-top:13px; max-width:84ch}
+  .foot b{color:#e9eef3; font-weight:600}
+  .kbd{font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:11px;
+    border:1px solid var(--line); border-bottom-width:2px; border-radius:4px; padding:1px 5px}
+  @media(max-width:780px){.wrap{grid-template-columns:1fr}.panel{order:2}#gl{height:440px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Constrained optimization · 3D</div>
+    <h1>The optimum is the <em>crest</em> of the draped path.</h1>
+    <p class="lede">Same setup as the flat view, lifted into 3D. The objective <i>f(x,&thinsp;y)</i> is now a surface; the constraint circle <i>x²&thinsp;+&thinsp;y²&thinsp;=&thinsp;r²</i> is the curve <b>draped across it</b> (the teal ribbon). Walk the point around the constraint and watch its height: the constrained maximum is simply the <b>highest point of that ribbon</b> — where, moving along the constraint, you stop climbing. That "stops climbing" moment is exactly <i>&nabla;f&nbsp;=&nbsp;&lambda;&thinsp;&nabla;g</i>.</p>
+  </header>
+
+  <div class="stage">
+    <canvas id="gl"></canvas>
+    <div class="hint">drag to orbit · scroll to zoom</div>
+  </div>
+
+  <div class="panel">
+    <div class="card">
+      <h2>State on the constraint</h2>
+      <div class="readout">
+        <div class="row"><span class="k">position (x,&thinsp;y)</span><span class="v" id="r-pos">—</span></div>
+        <div class="row"><span class="k">height f</span><span class="v" id="r-f">—</span></div>
+        <div class="row"><span class="k">slope along path</span><span class="v slope" id="r-slope">—</span></div>
+        <div class="row"><span class="k">multiplier &lambda;</span><span class="v lam" id="r-lam">—</span></div>
+      </div>
+      <div class="meter">
+        <div class="mlabel"><span>are you at the crest?</span><span class="verdict" id="r-verdict">—</span></div>
+        <div class="bar"><i id="r-bar"></i></div>
+      </div>
+    </div>
+
+    <div class="card controls">
+      <h2 style="margin-bottom:2px">Controls</h2>
+      <div class="ctl">
+        <label for="s-t"><span>walk the constraint</span><b id="l-t">0°</b></label>
+        <input type="range" id="s-t" min="0" max="1" step="0.001" value="0.12">
+      </div>
+      <div class="ctl">
+        <label for="s-r"><span>constraint radius r</span><b id="l-r">2.40</b></label>
+        <input type="range" id="s-r" min="1.4" max="2.9" step="0.01" value="2.4">
+      </div>
+      <div class="btns">
+        <button class="btn" id="toMax">↥ Max</button>
+        <button class="btn alt" id="toMin">↧ Min</button>
+      </div>
+      <label class="toggle"><input type="checkbox" id="showContour"> show level curve through point</label>
+    </div>
+
+    <div class="card">
+      <h2>Legend</h2>
+      <div class="legend">
+        <div class="item"><span class="sw" style="border-top-color:var(--constraint)"></span><div><code>constraint</code> <span class="sub">— ribbon draped on surface</span></div></div>
+        <div class="item"><span class="sw dot" style="background:var(--hot)"></span><div><span class="sub">point you're walking</span></div></div>
+        <div class="item"><span class="sw dot" style="background:var(--max)"></span><div><code>constrained max</code> <span class="sub">— ribbon's high point</span></div></div>
+        <div class="item"><span class="sw dot" style="background:var(--min)"></span><div><code>constrained min</code> <span class="sub">— ribbon's low point</span></div></div>
+        <div class="item"><span class="sw" style="border-top-color:var(--amber)"></span><div><code>level curve</code> <span class="sub">— tangent to the ribbon at a crest</span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <p class="foot">
+    <b>f(x,y) = &minus;(0.45·x² + 0.8·y²) + 0.6·x·y + 1.4·x + 0.5·y</b>, constraint <b>x² + y² = r²</b>. The flat contour rings of the 2D view are this surface's level sets seen from above. Toggle <b>show level curve</b> and snap to Max or Min: the amber level curve touches the teal constraint ribbon exactly at the crest — that tangency is the geometry, and the gradients being parallel there (<i>&nabla;f = &lambda;&nabla;g</i>) is its algebra. <b>&lambda;</b> is the height the crest gains per unit you loosen <i>r</i>. Drag the radius and watch the crest migrate. <span style="white-space:nowrap">Keys: <span class="kbd">←</span> <span class="kbd">→</span> walk.</span>
+  </p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+  const canvas = document.getElementById('gl');
+  if(!window.THREE){ canvas.insertAdjacentHTML('afterend',
+    '<p style="padding:20px;color:#fb3b6b;font-family:monospace">Could not load 3D library.</p>'); return; }
+
+  // ---------- math --------------------------------------------------------
+  const dom = 2.8, clampFloor = -7, hs = 0.5, floorY = clampFloor*hs;
+  function f(x,y){ return -(0.45*x*x + 0.8*y*y) + 0.6*x*y + 1.4*x + 0.5*y; }
+  function fx(x,y){ return -0.9*x + 0.6*y + 1.4; }
+  function fy(x,y){ return -1.6*y + 0.6*x + 0.5; }
+  const dispY = (x,y)=> Math.max(f(x,y), clampFloor)*hs;         // clamped for display
+  const V3 = (x,y)=> new THREE.Vector3(x, dispY(x,y), y);         // world(u,v) -> three(X,Y,Z)
+
+  let R = 2.4, t = 0.12;
+
+  // ---------- renderer / scene -------------------------------------------
+  const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
+
+  scene.add(new THREE.AmbientLight(0xffffff, .55));
+  const hemi = new THREE.HemisphereLight(0x9fd6ff, 0x1a1208, .5); scene.add(hemi);
+  const key = new THREE.DirectionalLight(0xffffff, .95); key.position.set(4,8,5); scene.add(key);
+  const rim = new THREE.DirectionalLight(0x7fbfff, .35); rim.position.set(-6,3,-4); scene.add(rim);
+
+  // ---------- surface -----------------------------------------------------
+  const stops = [
+    [-7, [0x12,0x22,0x3a]], [-4.2,[0x1b,0x45,0x57]],
+    [-1.5,[0x2c,0x6e,0x72]], [0.4,[0xc9,0x8a,0x33]], [2.0,[0xf4,0xea,0xd0]]
+  ];
+  function heightColor(h){
+    let a=stops[0], b=stops[stops.length-1];
+    for(let i=0;i<stops.length-1;i++){ if(h>=stops[i][0]&&h<=stops[i+1][0]){a=stops[i];b=stops[i+1];break;} }
+    const tt=Math.max(0,Math.min(1,(h-a[0])/((b[0]-a[0])||1)));
+    return [ (a[1][0]+(b[1][0]-a[1][0])*tt)/255,
+             (a[1][1]+(b[1][1]-a[1][1])*tt)/255,
+             (a[1][2]+(b[1][2]-a[1][2])*tt)/255 ];
+  }
+  const SEG = 96;
+  (function buildSurface(){
+    const geo = new THREE.BufferGeometry();
+    const pos=[], col=[], idx=[];
+    for(let i=0;i<=SEG;i++) for(let j=0;j<=SEG;j++){
+      const u=-dom+2*dom*i/SEG, v=-dom+2*dom*j/SEG;
+      const h=Math.max(f(u,v),clampFloor);
+      pos.push(u, h*hs, v);
+      const c=heightColor(h); col.push(c[0],c[1],c[2]);
+    }
+    const at=(i,j)=> i*(SEG+1)+j;
+    for(let i=0;i<SEG;i++) for(let j=0;j<SEG;j++){
+      const a=at(i,j), b=at(i+1,j), c=at(i+1,j+1), d=at(i,j+1);
+      idx.push(a,b,d, b,c,d);
+    }
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(col,3));
+    geo.setIndex(idx); geo.computeVertexNormals();
+    const mat=new THREE.MeshStandardMaterial({vertexColors:true, roughness:.82, metalness:.05,
+      flatShading:false, transparent:true, opacity:.97});
+    scene.add(new THREE.Mesh(geo,mat));
+    // subtle wireframe for surface read
+    const wire=new THREE.LineSegments(new THREE.WireframeGeometry(geo),
+      new THREE.LineBasicMaterial({color:0x000000, transparent:true, opacity:.05}));
+    scene.add(wire);
+  })();
+
+  // ---------- floor grid + projected circle ------------------------------
+  (function floor(){
+    const g=new THREE.Group();
+    const lineMat=new THREE.LineBasicMaterial({color:0x2a3d52, transparent:true, opacity:.5});
+    for(let k=-3;k<=3;k++){
+      g.add(seg(k,-dom,k,dom,lineMat)); g.add(seg(-dom,k,dom,k,lineMat));
+    }
+    function seg(x1,z1,x2,z2,m){
+      const gg=new THREE.BufferGeometry().setFromPoints(
+        [new THREE.Vector3(x1,floorY,z1), new THREE.Vector3(x2,floorY,z2)]);
+      return new THREE.Line(gg,m);
+    }
+    scene.add(g);
+  })();
+  const projCircle = new THREE.Line(new THREE.BufferGeometry(),
+    new THREE.LineBasicMaterial({color:0x1ab7b7, transparent:true, opacity:.5}));
+  scene.add(projCircle);
+
+  // ---------- draped ribbon, curtain, markers, point ----------------------
+  const ribbon = new THREE.Line(new THREE.BufferGeometry(),
+    new THREE.LineBasicMaterial({color:0x1ab7b7, linewidth:2}));
+  scene.add(ribbon);
+  const curtain = new THREE.Mesh(new THREE.BufferGeometry(),
+    new THREE.MeshBasicMaterial({color:0x1ab7b7, transparent:true, opacity:.10,
+      side:THREE.DoubleSide, depthWrite:false}));
+  scene.add(curtain);
+
+  const mkSphere=(c,r)=> new THREE.Mesh(new THREE.SphereGeometry(r,24,18),
+    new THREE.MeshStandardMaterial({color:c, roughness:.4, emissive:c, emissiveIntensity:.18}));
+  const point = mkSphere(0xfb3b6b, .085); scene.add(point);
+  const maxM  = mkSphere(0x34d399, .07);  scene.add(maxM);
+  const minM  = mkSphere(0x60a5fa, .07);  scene.add(minM);
+
+  const dropMat=new THREE.LineDashedMaterial({color:0xfb3b6b, dashSize:.12, gapSize:.08, transparent:true, opacity:.7});
+  const drop=new THREE.Line(new THREE.BufferGeometry(), dropMat); scene.add(drop);
+
+  let tangentArrow=null;
+  const contourLine=new THREE.LineSegments(new THREE.BufferGeometry(),
+    new THREE.LineBasicMaterial({color:0xe8a33d, transparent:true, opacity:.9}));
+  contourLine.visible=false; scene.add(contourLine);
+
+  // ---------- optima ------------------------------------------------------
+  function slopeAt(th){ const x=R*Math.cos(th), y=R*Math.sin(th);
+    return fx(x,y)*(-R*Math.sin(th)) + fy(x,y)*(R*Math.cos(th)); }   // d f/dθ
+  let thMax=0, thMin=0;
+  function findOptima(){
+    const M=900; let best=-1e9, low=1e9;
+    for(let i=0;i<M;i++){ const th=2*Math.PI*i/M; const h=f(R*Math.cos(th),R*Math.sin(th));
+      if(h>best){best=h; thMax=th;} if(h<low){low=h; thMin=th;} }
+    // refine by local golden-ish search
+    thMax=refine(thMax); thMin=refine(thMin,true);
+  }
+  function refine(th0, min){
+    let a=th0-0.04, b=th0+0.04;
+    for(let k=0;k<40;k++){ const m1=a+(b-a)/3, m2=b-(b-a)/3;
+      const f1=f(R*Math.cos(m1),R*Math.sin(m1)), f2=f(R*Math.cos(m2),R*Math.sin(m2));
+      if(min? (f1<f2):(f1>f2)) b=m2; else a=m1; }
+    return (a+b)/2;
+  }
+
+  // ---------- contour on surface (marching squares) -----------------------
+  function rebuildContour(h){
+    const N=120, step=2*dom/N, segs=[];
+    for(let i=0;i<N;i++) for(let j=0;j<N;j++){
+      const x=-dom+i*step, y=-dom+j*step;
+      const a=f(x,y), b=f(x+step,y), c=f(x+step,y+step), d=f(x,y+step);
+      let code=0; const P=[a,b,c,d]; for(let k=0;k<4;k++) if(P[k]>h) code|=1<<k;
+      if(code===0||code===15) continue;
+      const X=[x,x+step,x+step,x], Y=[y,y,y+step,y+step];
+      const ip=(k1,k2)=>{const tt=(h-P[k1])/((P[k2]-P[k1])||1e-9);
+        return [X[k1]+(X[k2]-X[k1])*tt, Y[k1]+(Y[k2]-Y[k1])*tt];};
+      const E=[()=>ip(0,1),()=>ip(1,2),()=>ip(2,3),()=>ip(3,0)];
+      const tbl={1:[[3,0]],2:[[0,1]],3:[[3,1]],4:[[1,2]],6:[[0,2]],7:[[3,2]],
+        8:[[2,3]],9:[[2,0]],11:[[2,1]],12:[[1,3]],13:[[1,0]],14:[[0,3]],
+        5:[[3,0],[1,2]],10:[[0,1],[2,3]]};
+      for(const s of (tbl[code]||[])){ const A=E[s[0]](), B=E[s[1]]();
+        segs.push(A,B); }
+    }
+    const pts=[];
+    for(const p of segs){ pts.push(V3(p[0],p[1])); }
+    // lift slightly above surface to avoid z-fight
+    const arr=new Float32Array(pts.length*3);
+    pts.forEach((p,i)=>{arr[i*3]=p.x; arr[i*3+1]=p.y+0.02; arr[i*3+2]=p.z;});
+    const g=new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(arr,3));
+    contourLine.geometry.dispose(); contourLine.geometry=g;
+  }
+
+  // ---------- rebuild geometry that depends on R --------------------------
+  function rebuildR(){
+    const N=240, rp=[], cp=[], curtainPos=[];
+    for(let i=0;i<=N;i++){ const th=2*Math.PI*i/N;
+      const x=R*Math.cos(th), y=R*Math.sin(th);
+      rp.push(V3(x,y));
+      cp.push(new THREE.Vector3(x,floorY,y));
+    }
+    ribbon.geometry.dispose(); ribbon.geometry=new THREE.BufferGeometry().setFromPoints(rp);
+    projCircle.geometry.dispose(); projCircle.geometry=new THREE.BufferGeometry().setFromPoints(cp);
+    // curtain strip
+    const cg=new THREE.BufferGeometry(); const pos=[]; const idx=[];
+    for(let i=0;i<=N;i++){ const top=rp[i], bot=cp[i];
+      pos.push(bot.x,bot.y,bot.z, top.x,top.y,top.z); }
+    for(let i=0;i<N;i++){ const a=i*2, b=i*2+1, c=i*2+2, d=i*2+3;
+      idx.push(a,b,d, a,d,c); }
+    cg.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
+    cg.setIndex(idx); cg.computeVertexNormals();
+    curtain.geometry.dispose(); curtain.geometry=cg;
+
+    findOptima();
+    maxM.position.copy(V3(R*Math.cos(thMax),R*Math.sin(thMax))).y+=0.03;
+    minM.position.copy(V3(R*Math.cos(thMin),R*Math.sin(thMin))).y+=0.03;
+    if(showContourEl.checked) rebuildContour(f(R*Math.cos(t*2*Math.PI),R*Math.sin(t*2*Math.PI)));
+    update();
+  }
+
+  // ---------- per-frame state update -------------------------------------
+  function update(){
+    const th=t*2*Math.PI, x=R*Math.cos(th), y=R*Math.sin(th);
+    const p=V3(x,y); point.position.copy(p); point.position.y+=0.03;
+    // drop line
+    const dg=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x,floorY,y), p]);
+    drop.geometry.dispose(); drop.geometry=dg; drop.computeLineDistances();
+
+    // tangent direction along path (3D)
+    const eps=0.004; const pA=V3(R*Math.cos(th-eps),R*Math.sin(th-eps));
+    const pB=V3(R*Math.cos(th+eps),R*Math.sin(th+eps));
+    const dir=new THREE.Vector3().subVectors(pB,pA).normalize();
+    if(tangentArrow) scene.remove(tangentArrow);
+    tangentArrow=new THREE.ArrowHelper(dir, p.clone().setY(p.y+0.03), 0.95, 0xffffff, 0.22, 0.13);
+    tangentArrow.line.material.transparent=true; tangentArrow.line.material.opacity=.85;
+    scene.add(tangentArrow);
+
+    // readouts
+    const slope=slopeAt(th);
+    const lam=(x*fx(x,y)+y*fy(x,y))/(2*R*R);
+    // "at crest" closeness: slope -> 0, normalized by a scale
+    const closeness=Math.max(0, 1 - Math.abs(slope)/3.2);
+    txt('r-pos', `(${x.toFixed(2)}, ${y.toFixed(2)})`);
+    txt('r-f', f(x,y).toFixed(3));
+    txt('r-slope', slope.toFixed(3));
+    txt('r-lam', lam.toFixed(3));
+    document.getElementById('r-bar').style.right=(100*(1-closeness))+'%';
+    const atMax=Math.abs(((th-thMax+Math.PI*3)%(2*Math.PI))-Math.PI)<0.02;
+    const atMin=Math.abs(((th-thMin+Math.PI*3)%(2*Math.PI))-Math.PI)<0.02;
+    const vEl=document.getElementById('r-verdict');
+    if(closeness>0.992){ vEl.textContent= atMin?'AT MIN ✓':'AT CREST ✓';
+      vEl.style.color=atMin?getCSS('--min'):getCSS('--max'); }
+    else { vEl.textContent= Math.abs(slope)<1?'almost':'climbing'; vEl.style.color=getCSS('--muted'); }
+    txt('l-t', closeness>0.992?'at optimum':Math.round(t*360)+'°');
+    txt('l-r', R.toFixed(2));
+  }
+
+  // ---------- custom orbit controls --------------------------------------
+  const cam={radius:8.2, theta:0.72, phi:1.02, target:new THREE.Vector3(0,-1.1,0)};
+  function applyCam(){
+    camera.position.set(
+      cam.target.x+cam.radius*Math.sin(cam.phi)*Math.sin(cam.theta),
+      cam.target.y+cam.radius*Math.cos(cam.phi),
+      cam.target.z+cam.radius*Math.sin(cam.phi)*Math.cos(cam.theta));
+    camera.lookAt(cam.target);
+  }
+  const ptrs=new Map(); let lastX=0,lastY=0, pinchD=0;
+  canvas.addEventListener('pointerdown',e=>{ canvas.setPointerCapture(e.pointerId);
+    ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(ptrs.size===1){ lastX=e.clientX; lastY=e.clientY; canvas.classList.add('drag'); }
+    if(ptrs.size===2){ const v=[...ptrs.values()]; pinchD=Math.hypot(v[0].x-v[1].x,v[0].y-v[1].y); }
+  });
+  canvas.addEventListener('pointermove',e=>{
+    if(!ptrs.has(e.pointerId)) return;
+    ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(ptrs.size===1){
+      const dx=e.clientX-lastX, dy=e.clientY-lastY; lastX=e.clientX; lastY=e.clientY;
+      cam.theta-=dx*0.006; cam.phi=Math.max(0.16,Math.min(1.5,cam.phi-dy*0.006)); applyCam();
+    } else if(ptrs.size===2){
+      const v=[...ptrs.values()]; const d=Math.hypot(v[0].x-v[1].x,v[0].y-v[1].y);
+      if(pinchD){ cam.radius=Math.max(4.5,Math.min(15,cam.radius*pinchD/d)); applyCam(); }
+      pinchD=d;
+    }
+  });
+  function endPtr(e){ ptrs.delete(e.pointerId); if(ptrs.size<2) pinchD=0;
+    if(ptrs.size===0) canvas.classList.remove('drag');
+    if(showContourEl.checked) rebuildContour(f(R*Math.cos(t*2*Math.PI),R*Math.sin(t*2*Math.PI)));
+  }
+  canvas.addEventListener('pointerup',endPtr);
+  canvas.addEventListener('pointercancel',endPtr);
+  canvas.addEventListener('wheel',e=>{ e.preventDefault();
+    cam.radius=Math.max(4.5,Math.min(15,cam.radius*(1+e.deltaY*0.0009))); applyCam(); },{passive:false});
+
+  // ---------- UI ----------------------------------------------------------
+  const sT=document.getElementById('s-t'), sR=document.getElementById('s-r');
+  const showContourEl=document.getElementById('showContour');
+  sT.addEventListener('input',e=>{ t=+e.target.value;
+    if(showContourEl.checked) contourLine.visible=true, rebuildContour(f(R*Math.cos(t*2*Math.PI),R*Math.sin(t*2*Math.PI)));
+    update(); });
+  sR.addEventListener('input',e=>{ R=+e.target.value; rebuildR(); });
+  showContourEl.addEventListener('change',e=>{
+    contourLine.visible=e.target.checked;
+    if(e.target.checked) rebuildContour(f(R*Math.cos(t*2*Math.PI),R*Math.sin(t*2*Math.PI)));
+  });
+  document.getElementById('toMax').addEventListener('click',()=>animateTo(thMax/(2*Math.PI)));
+  document.getElementById('toMin').addEventListener('click',()=>animateTo(thMin/(2*Math.PI)));
+  function animateTo(target){
+    const reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
+    let from=t, d=target-from; d-=Math.round(d);
+    if(reduce){ t=((target%1)+1)%1; sT.value=t;
+      if(showContourEl.checked) rebuildContour(f(R*Math.cos(t*2*Math.PI),R*Math.sin(t*2*Math.PI)));
+      update(); return; }
+    const t0=performance.now(), dur=560;
+    (function step(now){ const k=Math.min(1,(now-t0)/dur); const e=1-Math.pow(1-k,3);
+      t=((from+d*e)%1+1)%1; sT.value=t; update();
+      if(k<1) requestAnimationFrame(step);
+      else if(showContourEl.checked) rebuildContour(f(R*Math.cos(t*2*Math.PI),R*Math.sin(t*2*Math.PI)));
+    })(performance.now());
+  }
+  window.addEventListener('keydown',e=>{
+    if(e.key==='ArrowRight'||e.key==='ArrowLeft'){
+      t=((t+(e.key==='ArrowRight'?.004:-.004))%1+1)%1; sT.value=t; update(); e.preventDefault();
+      if(showContourEl.checked) rebuildContour(f(R*Math.cos(t*2*Math.PI),R*Math.sin(t*2*Math.PI)));
+    }
+  });
+
+  function txt(id,s){ document.getElementById(id).textContent=s; }
+  function getCSS(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+  // ---------- resize + loop ----------------------------------------------
+  function resize(){ const r=canvas.getBoundingClientRect();
+    renderer.setSize(r.width, r.height, false);
+    camera.aspect=r.width/r.height; camera.updateProjectionMatrix(); }
+  new ResizeObserver(resize).observe(canvas);
+
+  rebuildR(); applyCam(); resize();
+  (function loop(){ renderer.render(scene,camera); requestAnimationFrame(loop); })();
+})();
+</script>
+</body>
+</html>

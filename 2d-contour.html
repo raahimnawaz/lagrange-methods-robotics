@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lagrange Multipliers</title>
+<style>
+  :root{
+    --ink:#0f1b2d;
+    --paper:#eef2f4;
+    --grid:#d6dee3;
+    --constraint:#0b6e6e;     /* teal — the constraint g */
+    --objgrad:#c2410c;        /* burnt orange — gradient of f */
+    --congrad:#1d4ed8;        /* blue — gradient of g */
+    --aligned:#15803d;        /* green — when they align */
+    --muted:#5b6b7a;
+    --hot:#e11d48;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:
+      radial-gradient(120% 80% at 80% -10%, #f6f9fa 0%, var(--paper) 55%) fixed;
+    color:var(--ink);
+    font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+    display:flex; justify-content:center; align-items:flex-start;
+    padding:clamp(14px,3vw,40px);
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{
+    width:100%; max-width:1080px;
+    display:grid; grid-template-columns:minmax(0,1.32fr) minmax(260px,1fr);
+    gap:clamp(16px,2.4vw,34px);
+  }
+  header{grid-column:1/-1; margin-bottom:2px}
+  .eyebrow{
+    font-family:"SF Mono",ui-monospace,"Cascadia Mono",Menlo,monospace;
+    font-size:11.5px; letter-spacing:.22em; text-transform:uppercase;
+    color:var(--muted); display:flex; align-items:center; gap:.7em;
+  }
+  .eyebrow::before{content:""; width:26px; height:1px; background:var(--muted)}
+  h1{
+    font-size:clamp(26px,4.4vw,40px); font-weight:600; line-height:1.04;
+    letter-spacing:-.01em; margin:.28em 0 .2em;
+  }
+  h1 em{font-style:italic; color:var(--constraint)}
+  .lede{font-size:15px; color:var(--muted); max-width:60ch; line-height:1.5}
+
+  .stage{
+    position:relative; background:#fbfdfd; border:1px solid var(--grid);
+    border-radius:14px; overflow:hidden;
+    box-shadow:0 1px 0 #fff inset, 0 18px 40px -28px rgba(15,27,45,.5);
+  }
+  svg{display:block; width:100%; height:auto; touch-action:none; cursor:grab}
+  svg.drag{cursor:grabbing}
+
+  .panel{display:flex; flex-direction:column; gap:16px}
+  .card{
+    background:#fbfdfd; border:1px solid var(--grid); border-radius:12px;
+    padding:16px 17px;
+  }
+  .card h2{
+    font-family:"SF Mono",ui-monospace,Menlo,monospace;
+    font-size:11px; letter-spacing:.18em; text-transform:uppercase;
+    color:var(--muted); font-weight:500; margin-bottom:12px;
+  }
+  .readout{font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:13px}
+  .row{display:flex; justify-content:space-between; align-items:baseline; padding:5px 0}
+  .row+.row{border-top:1px dashed var(--grid)}
+  .row .k{color:var(--muted)}
+  .row .v{font-variant-numeric:tabular-nums; font-weight:600}
+  .v.lam{color:var(--congrad)}
+
+  .align-meter{margin-top:4px}
+  .bar{height:8px; border-radius:4px; background:var(--grid); overflow:hidden; position:relative}
+  .bar>i{
+    position:absolute; inset:0 100% 0 0; border-radius:4px;
+    background:linear-gradient(90deg,var(--hot),#f59e0b 55%,var(--aligned));
+    transition:right .08s linear;
+  }
+  .align-label{
+    display:flex; justify-content:space-between; margin-top:7px;
+    font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:11px; color:var(--muted);
+  }
+  .verdict{font-weight:600}
+
+  .legend{display:flex; flex-direction:column; gap:9px; font-size:13px}
+  .legend .item{display:flex; align-items:center; gap:9px; line-height:1.3}
+  .swatch{width:15px; height:0; border-top-width:3px; border-top-style:solid; flex:none; border-radius:2px}
+  .swatch.dot{height:11px; width:11px; border-top:0; border-radius:50%}
+  .legend code{font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:12px; color:var(--ink)}
+  .legend .sub{color:var(--muted)}
+
+  .controls{display:flex; flex-direction:column; gap:13px}
+  .ctl label{
+    display:flex; justify-content:space-between; align-items:baseline;
+    font-size:12.5px; color:var(--muted); margin-bottom:5px;
+    font-family:"SF Mono",ui-monospace,Menlo,monospace; letter-spacing:.02em;
+  }
+  .ctl label b{color:var(--ink); font-weight:600}
+  input[type=range]{
+    -webkit-appearance:none; appearance:none; width:100%; height:3px;
+    background:var(--grid); border-radius:3px; outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:16px; height:16px; border-radius:50%;
+    background:var(--ink); cursor:pointer; border:2px solid #fbfdfd;
+    box-shadow:0 1px 4px rgba(0,0,0,.3);
+  }
+  input[type=range]::-moz-range-thumb{
+    width:16px; height:16px; border-radius:50%; background:var(--ink);
+    cursor:pointer; border:2px solid #fbfdfd;
+  }
+  .snap{
+    appearance:none; border:1px solid var(--constraint); background:transparent;
+    color:var(--constraint); font-family:"SF Mono",ui-monospace,Menlo,monospace;
+    font-size:12px; letter-spacing:.04em; padding:9px 12px; border-radius:8px;
+    cursor:pointer; transition:background .15s,color .15s; text-transform:uppercase;
+  }
+  .snap:hover{background:var(--constraint); color:#fff}
+  .foot{
+    grid-column:1/-1; font-size:12.5px; color:var(--muted); line-height:1.55;
+    border-top:1px solid var(--grid); padding-top:14px; max-width:78ch;
+  }
+  .foot b{color:var(--ink); font-weight:600}
+  .kbd{font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:11px;
+    border:1px solid var(--grid); border-bottom-width:2px; border-radius:4px; padding:1px 5px}
+  @media(max-width:760px){
+    .wrap{grid-template-columns:1fr}
+    .panel{order:2}
+  }
+  @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Constrained optimization</div>
+    <h1>The optimum is where the gradients <em>line up</em>.</h1>
+    <p class="lede">Maximize a function <i>f(x,&thinsp;y)</i> while staying on the curve <i>g(x,&thinsp;y)&nbsp;=&nbsp;0</i>. Drag the point around the constraint. The constrained best isn't where <i>f</i> is biggest overall — it's the single spot where the constraint runs <i>tangent</i> to a contour of <i>f</i>, so their gradients point the same way: <i>&nabla;f&nbsp;=&nbsp;&lambda;&thinsp;&nabla;g</i>.</p>
+  </header>
+
+  <div class="stage">
+    <svg id="viz" viewBox="0 0 600 520" aria-label="Contour plot with a constraint curve and a draggable point showing gradient alignment"></svg>
+  </div>
+
+  <div class="panel">
+    <div class="card">
+      <h2>State at the point</h2>
+      <div class="readout">
+        <div class="row"><span class="k">position (x,&thinsp;y)</span><span class="v" id="r-pos">—</span></div>
+        <div class="row"><span class="k">objective f</span><span class="v" id="r-f">—</span></div>
+        <div class="row"><span class="k">multiplier &lambda;</span><span class="v lam" id="r-lam">—</span></div>
+      </div>
+      <div class="align-meter">
+        <div class="align-label"><span>gradient alignment</span><span class="verdict" id="r-verdict">—</span></div>
+        <div class="bar"><i id="r-bar"></i></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Legend</h2>
+      <div class="legend">
+        <div class="item"><span class="swatch" style="border-top-color:var(--constraint)"></span><div><code>g(x,y)=0</code> <span class="sub">— the constraint you must stay on</span></div></div>
+        <div class="item"><span class="swatch" style="border-top-color:var(--grid);border-top-color:#b9c6cd"></span><div><span class="sub">contours of</span> <code>f</code> <span class="sub">— equal-value rings</span></div></div>
+        <div class="item"><span class="swatch" style="border-top-color:var(--objgrad)"></span><div><code>&nabla;f</code> <span class="sub">— uphill on the objective</span></div></div>
+        <div class="item"><span class="swatch" style="border-top-color:var(--congrad)"></span><div><code>&nabla;g</code> <span class="sub">— normal to the constraint</span></div></div>
+        <div class="item"><span class="swatch dot" style="background:var(--hot)"></span><div><span class="sub">draggable point on the constraint</span></div></div>
+      </div>
+    </div>
+
+    <div class="card controls">
+      <h2 style="margin-bottom:2px">Controls</h2>
+      <div class="ctl">
+        <label for="s-t"><span>point position</span><b id="l-t">drag me</b></label>
+        <input type="range" id="s-t" min="0" max="1" step="0.001" value="0.12">
+      </div>
+      <div class="ctl">
+        <label for="s-r"><span>constraint radius</span><b id="l-r">2.40</b></label>
+        <input type="range" id="s-r" min="1.4" max="3.0" step="0.01" value="2.4">
+      </div>
+      <button class="snap" id="snap">Snap to nearest optimum</button>
+    </div>
+  </div>
+
+  <p class="foot">
+    Here <b>f(x,y) = &minus;(0.45·x² + 0.8·y²) + 0.6·x·y + 1.4·x + 0.5·y</b> (a tilted dome — the rings are its level sets) and the constraint is the circle <b>x² + y² = r²</b>. Walk the point around the circle and read the alignment meter: when <code>&nabla;f</code> (orange) and <code>&nabla;g</code> (blue) become parallel, the constraint is tangent to a contour and you're at a constrained max or min. The ratio of their lengths at that instant is <b>&lambda;</b> — how much the best attainable f would move if you loosened the constraint by a notch. Drag the radius to watch the optima slide. <span style="white-space:nowrap">Keys: <span class="kbd">←</span> <span class="kbd">→</span> nudge.</span>
+  </p>
+</div>
+
+<script>
+(function(){
+  const svg = document.getElementById('viz');
+  const NS = 'http://www.w3.org/2000/svg';
+  const W = 600, H = 520;
+
+  // ---- world <-> screen mapping -------------------------------------------
+  const dom = 3.6;                       // world spans [-dom, dom] in x
+  const cx = W/2, cy = H/2, scale = (W/2 - 40)/dom;
+  const SX = x => cx + x*scale;
+  const SY = y => cy - y*scale;
+  const WX = px => (px - cx)/scale;
+  const WY = py => (cy - py)/scale;
+
+  // ---- the objective f and its gradient -----------------------------------
+  function f(x,y){ return -(0.45*x*x + 0.8*y*y) + 0.6*x*y + 1.4*x + 0.5*y; }
+  function gradF(x,y){ return [ -0.9*x + 0.6*y + 1.4,  -1.6*y + 0.6*x + 0.5 ]; }
+
+  let R = 2.4;        // constraint radius
+  let t = 0.12;       // param around circle [0,1)
+
+  // ---- static layers ------------------------------------------------------
+  const gGrid = mk('g'), gCont = mk('g'), gCon = mk('g'), gDyn = mk('g');
+  svg.append(gGrid, gCont, gCon, gDyn);
+
+  function mk(tag,attrs){ const e=document.createElementNS(NS,tag);
+    if(attrs) for(const k in attrs) e.setAttribute(k,attrs[k]); return e; }
+
+  // grid
+  (function grid(){
+    for(let i=-3;i<=3;i++){
+      const vx=mk('line',{x1:SX(i),y1:SY(-dom),x2:SX(i),y2:SY(dom),
+        stroke:'#e7edf0','stroke-width':i===0?1.4:1}); gGrid.append(vx);
+      const hz=mk('line',{x1:SX(-dom),y1:SY(i),x2:SX(dom),y2:SY(i),
+        stroke:'#e7edf0','stroke-width':i===0?1.4:1}); gGrid.append(hz);
+    }
+  })();
+
+  // contour lines of f via marching squares
+  function buildContours(){
+    gCont.textContent='';
+    const N=160, step=(2*dom)/N;
+    const val=(i,j)=> f(-dom+i*step, -dom+j*step);
+    // pick contour levels spanning the field
+    let lo=Infinity, hi=-Infinity;
+    for(let i=0;i<=N;i+=4)for(let j=0;j<=N;j+=4){const v=val(i,j); if(v<lo)lo=v; if(v>hi)hi=v;}
+    const levels=[]; const K=11;
+    for(let k=1;k<K;k++) levels.push(lo+(hi-lo)*k/K);
+    levels.forEach((lv,idx)=>{
+      const near = Math.abs(idx-(K-2))<0.5; // emphasise one ring lightly
+      let d='';
+      for(let i=0;i<N;i++)for(let j=0;j<N;j++){
+        const x0=-dom+i*step, y0=-dom+j*step;
+        const a=f(x0,y0), b=f(x0+step,y0), c=f(x0+step,y0+step), dd=f(x0,y0+step);
+        const seg=isoSeg(lv,x0,y0,step,a,b,c,dd);
+        for(const s of seg) d+=`M${SX(s[0]).toFixed(1)} ${SY(s[1]).toFixed(1)}L${SX(s[2]).toFixed(1)} ${SY(s[3]).toFixed(1)}`;
+      }
+      gCont.append(mk('path',{d, fill:'none', stroke:'#c3ced5',
+        'stroke-width':0.9, 'stroke-linecap':'round'}));
+    });
+  }
+  function isoSeg(lv,x,y,h,a,b,c,d){
+    // corners: a=(x,y) b=(x+h,y) c=(x+h,y+h) d=(x,y+h)
+    const p=[a,b,c,d]; let code=0; for(let k=0;k<4;k++) if(p[k]>lv) code|=(1<<k);
+    if(code===0||code===15) return [];
+    const X=[x,x+h,x+h,x], Y=[y,y,y+h,y+h];
+    const ip=(k1,k2)=>{ const v1=p[k1],v2=p[k2]; const tt=(lv-v1)/(v2-v1);
+      return [X[k1]+(X[k2]-X[k1])*tt, Y[k1]+(Y[k2]-Y[k1])*tt]; };
+    const E=[ ()=>ip(0,1), ()=>ip(1,2), ()=>ip(2,3), ()=>ip(3,0) ];
+    const table={1:[[3,0]],2:[[0,1]],3:[[3,1]],4:[[1,2]],6:[[0,2]],
+      7:[[3,2]],8:[[2,3]],9:[[2,0]],11:[[2,1]],12:[[1,3]],13:[[1,0]],14:[[0,3]],
+      5:[[3,0],[1,2]],10:[[0,1],[2,3]]};
+    const segs=table[code]||[]; const out=[];
+    for(const s of segs){ const A=E[s[0]](), B=E[s[1]](); out.push([A[0],A[1],B[0],B[1]]); }
+    return out;
+  }
+
+  // constraint circle
+  const conCircle = mk('circle',{cx:SX(0),cy:SY(0),r:R*scale,fill:'none',
+    stroke:getCSS('--constraint'),'stroke-width':2.4});
+  gCon.append(conCircle);
+
+  // dynamic bits: arrows + point + tangency hint
+  const tang = mk('line',{stroke:getCSS('--constraint'),'stroke-width':1.4,
+    'stroke-dasharray':'5 5','opacity':.55});
+  const arrF = arrow(getCSS('--objgrad'));
+  const arrG = arrow(getCSS('--congrad'));
+  const halo = mk('circle',{r:13,fill:'none','stroke-width':2});
+  const pt   = mk('circle',{r:6.5,fill:getCSS('--hot'),stroke:'#fff','stroke-width':2});
+  // optima ghost markers
+  const ghosts = mk('g'); 
+  gDyn.append(ghosts, tang, arrF.g, arrG.g, halo, pt);
+
+  function arrow(color){
+    const g=mk('g');
+    const line=mk('line',{stroke:color,'stroke-width':2.6,'stroke-linecap':'round'});
+    const head=mk('path',{fill:color});
+    g.append(line,head);
+    return {g,line,head,color};
+  }
+  function setArrow(a,x0,y0,vx,vy,len){
+    const m=Math.hypot(vx,vy)||1e-9; const ux=vx/m, uy=vy/m;
+    const x1=x0+ux*len, y1=y0+uy*len;
+    a.line.setAttribute('x1',SX(x0)); a.line.setAttribute('y1',SY(y0));
+    a.line.setAttribute('x2',SX(x1)); a.line.setAttribute('y2',SY(y1));
+    const ax=SX(x1), ay=SY(y1);
+    const ang=Math.atan2(SY(y1)-SY(y0), SX(x1)-SX(x0));
+    const s=9;
+    const hx1=ax-s*Math.cos(ang-0.42), hy1=ay-s*Math.sin(ang-0.42);
+    const hx2=ax-s*Math.cos(ang+0.42), hy2=ay-s*Math.sin(ang+0.42);
+    a.head.setAttribute('d',`M${ax} ${ay}L${hx1} ${hy1}L${hx2} ${hy2}Z`);
+  }
+
+  // ---- find optima (alignment extrema) around the circle ------------------
+  function alignmentAt(theta){
+    const x=R*Math.cos(theta), y=R*Math.sin(theta);
+    const gf=gradF(x,y);
+    // constraint normal is radial: (x,y). tangential component of grad f:
+    const tx=-Math.sin(theta), ty=Math.cos(theta);
+    const tangential = gf[0]*tx + gf[1]*ty;       // zero => stationary
+    return tangential;
+  }
+  function findOptima(){
+    const res=[]; const M=720; let prev=alignmentAt(0);
+    for(let i=1;i<=M;i++){
+      const th=2*Math.PI*i/M; const cur=alignmentAt(th);
+      if(prev===0 || (prev<0)!==(cur<0)){
+        // bisect
+        let a=2*Math.PI*(i-1)/M, b=th;
+        for(let k=0;k<40;k++){ const mid=(a+b)/2;
+          if((alignmentAt(a)<0)!==(alignmentAt(mid)<0)) b=mid; else a=mid; }
+        res.push((a+b)/2);
+      }
+      prev=cur;
+    }
+    return res;
+  }
+
+  // ---- render -------------------------------------------------------------
+  let optima=[];
+  function rebuild(){
+    buildContours();
+    conCircle.setAttribute('r', R*scale);
+    optima=findOptima();
+    // ghost markers
+    ghosts.textContent='';
+    optima.forEach(th=>{
+      const x=R*Math.cos(th), y=R*Math.sin(th);
+      const isMax = (f(x,y) >= avgOptF());
+      ghosts.append(mk('circle',{cx:SX(x),cy:SY(y),r:5,fill:'none',
+        stroke:getCSS('--aligned'),'stroke-width':1.6,'opacity':.5}));
+    });
+    render();
+  }
+  function avgOptF(){ if(!optima.length) return 0;
+    let s=0; optima.forEach(th=>s+=f(R*Math.cos(th),R*Math.sin(th)));
+    return s/optima.length; }
+
+  function render(){
+    const theta = t*2*Math.PI;
+    const x=R*Math.cos(theta), y=R*Math.sin(theta);
+    const gf=gradF(x,y);
+    const gg=[x,y];                          // grad of x^2+y^2 = (2x,2y) ~ radial
+    // alignment: |cos| between gradients, but sign-aware for tangency
+    const dot=gf[0]*gg[0]+gf[1]*gg[1];
+    const cosA = dot/((Math.hypot(...gf)||1e-9)*(Math.hypot(...gg)||1e-9));
+    const tang_comp = Math.abs(gf[0]*(-Math.sin(theta)) + gf[1]*Math.cos(theta));
+    const gfMag=Math.hypot(...gf)||1e-9;
+    const aligned = 1 - tang_comp/gfMag;     // 1 when perfectly tangent
+
+    // arrows (scaled to be readable)
+    setArrow(arrF, x,y, gf[0],gf[1], 0.9);
+    setArrow(arrG, x,y, gg[0],gg[1], 0.62);
+    // tangent line to circle at point
+    const tx=-Math.sin(theta), ty=Math.cos(theta), L=1.5;
+    tang.setAttribute('x1',SX(x-tx*L)); tang.setAttribute('y1',SY(y-ty*L));
+    tang.setAttribute('x2',SX(x+tx*L)); tang.setAttribute('y2',SY(y+ty*L));
+
+    pt.setAttribute('cx',SX(x)); pt.setAttribute('cy',SY(y));
+    halo.setAttribute('cx',SX(x)); halo.setAttribute('cy',SY(y));
+
+    // lambda = grad f . grad g / |grad g|^2  (projection coefficient)
+    const lam = dot/((gg[0]*gg[0]+gg[1]*gg[1])||1e-9);
+
+    // colour feedback
+    const g255 = Math.round(120*aligned);
+    const col = aligned>0.985 ? getCSS('--aligned')
+              : `rgb(${225-g255},${70+g255},${72})`;
+    halo.setAttribute('stroke', col);
+    halo.setAttribute('opacity', 0.25+0.6*Math.max(0,aligned));
+
+    // readouts
+    txt('r-pos', `(${x.toFixed(2)}, ${y.toFixed(2)})`);
+    txt('r-f', f(x,y).toFixed(3));
+    txt('r-lam', lam.toFixed(3));
+    document.getElementById('r-bar').style.right = (100*(1-Math.max(0,aligned)))+'%';
+    const v = aligned>0.985 ? 'TANGENT ✓' : aligned>0.8 ? 'close' : 'misaligned';
+    const vEl=document.getElementById('r-verdict');
+    vEl.textContent=v; vEl.style.color = aligned>0.985?getCSS('--aligned'):getCSS('--muted');
+    txt('l-t', aligned>0.985?'at optimum':(t*360|0)+'°');
+    txt('l-r', R.toFixed(2));
+  }
+
+  // ---- interaction --------------------------------------------------------
+  const sT=document.getElementById('s-t'), sR=document.getElementById('s-r');
+  sT.addEventListener('input',e=>{t=+e.target.value; render();});
+  sR.addEventListener('input',e=>{R=+e.target.value; rebuild();});
+
+  document.getElementById('snap').addEventListener('click',()=>{
+    if(!optima.length) return;
+    const cur=t*2*Math.PI;
+    let best=optima[0], bd=1e9;
+    optima.forEach(th=>{ let d=Math.abs(((th-cur+Math.PI*3)%(2*Math.PI))-Math.PI);
+      if(d<bd){bd=d;best=th;} });
+    animateTo(best/(2*Math.PI));
+  });
+
+  function animateTo(target){
+    const reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
+    let from=t; let d=target-from; d-=Math.round(d); // shortest way around
+    if(reduce){ t=((target%1)+1)%1; sT.value=t; render(); return; }
+    const t0=performance.now(), dur=520;
+    (function step(now){
+      const k=Math.min(1,(now-t0)/dur); const e=1-Math.pow(1-k,3);
+      t=((from+d*e)%1+1)%1; sT.value=t; render();
+      if(k<1) requestAnimationFrame(step);
+    })(performance.now());
+  }
+
+  // drag the point directly
+  let dragging=false;
+  function pointerToT(evt){
+    const r=svg.getBoundingClientRect();
+    const px=(evt.clientX-r.left)*(W/r.width);
+    const py=(evt.clientY-r.top)*(H/r.height);
+    const th=Math.atan2(-(WY(py)-0)*1, (WX(px)-0)); // angle in world
+    let nt=th/(2*Math.PI); nt=((nt%1)+1)%1; t=nt; sT.value=t; render();
+  }
+  svg.addEventListener('pointerdown',e=>{dragging=true; svg.classList.add('drag');
+    svg.setPointerCapture(e.pointerId); pointerToT(e);});
+  svg.addEventListener('pointermove',e=>{ if(dragging) pointerToT(e); });
+  svg.addEventListener('pointerup',()=>{dragging=false; svg.classList.remove('drag');});
+  svg.addEventListener('pointercancel',()=>{dragging=false; svg.classList.remove('drag');});
+
+  window.addEventListener('keydown',e=>{
+    if(e.key==='ArrowRight'||e.key==='ArrowLeft'){
+      t=((t+(e.key==='ArrowRight'?.004:-.004))%1+1)%1; sT.value=t; render(); e.preventDefault();
+    }
+  });
+
+  function txt(id,s){ document.getElementById(id).textContent=s; }
+  function getCSS(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+  rebuild();
+})();
+</script>
+</body>
+</html>
