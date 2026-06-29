@@ -4,12 +4,18 @@ Interactive visualizations of **Lagrange multipliers** — the math under trajec
 
 > **The whole idea in one line:** at a constrained optimum, the constraint curve is *tangent* to a level set of the objective, so their gradients are parallel — **∇f = λ∇g**.
 
-<!-- TODO: record a short screen capture of the tangency moment (drag the point → snap to optimum) and drop it here. This GIF is most of the README's value. -->
-<!-- Suggested: open 2d-contour.html, hit "Snap to nearest optimum", capture ~4s. Tools: Kap (mac), ScreenToGif (win), or peek (linux). -->
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshot-2d-misaligned.png" alt="Generic point on the constraint: the objective gradient (orange) and constraint gradient (blue) point in different directions"></td>
+<td width="50%"><img src="docs/screenshot-2d-tangent.png" alt="Constrained optimum: the gradients are collinear and a level curve runs tangent to the constraint"></td>
+</tr>
+<tr>
+<td align="center"><em>Generic point — ∇f (orange) and ∇g (blue) disagree, so you can still improve f by sliding along the constraint.</em></td>
+<td align="center"><em>Constrained optimum — the gradients line up (∇f = λ∇g) and a level curve runs tangent to the circle.</em></td>
+</tr>
+</table>
 
-![tangency demo](docs/demo.gif)
-
-**[▶ Live demo](https://raahimnawaz.github.io/lagrange-methods-robotics/)** &nbsp;·&nbsp; or open `index.html` locally.
+**[▶ Live demo](https://raahimnawaz.github.io/lagrange-methods-robotics/)** &nbsp;·&nbsp; or open `index.html` locally — drag the point around the constraint and watch the gradients rotate into alignment.
 
 ---
 
@@ -54,6 +60,12 @@ So the tangency picture isn't just a calculus exercise — it's the geometric co
 | `index.html` | landing | Links both visualizations (the GitHub Pages entry point). |
 | `2d-contour.html` | 2D | Drag a point around the constraint over the objective's contour rings. `∇f` and `∇g` arrows rotate into alignment at the optimum; live readout of position, `f`, `λ`, and an alignment meter. Snap-to-optimum. |
 | `3d-surface.html` | 3D | The objective as a surface, the constraint draped across it as a ribbon. The constrained optimum is the ribbon's high point. Toggle a level curve through the point to see it go tangent to the ribbon at the crest. Orbit + zoom, snap-to-max/min, radius slider. |
+
+<p align="center">
+<img src="docs/screenshot-3d.png" width="70%" alt="The objective as a 3D surface with the constraint draped across it as a ribbon; the constrained maximum is the crest, marked by the green sphere">
+<br>
+<em>3D view — the objective is a surface, the constraint a ribbon draped across it. The constrained maximum (green) is simply the ribbon's highest point.</em>
+</p>
 
 The 3D view uses [Three.js](https://threejs.org/) (one CDN `<script>` tag, no build step). Everything else is vanilla HTML/CSS/JS.
 
